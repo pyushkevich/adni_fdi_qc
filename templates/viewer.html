@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css">
+    <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/grids-responsive-min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='marketing.css') }}">
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8"/>
+    <meta name="viewport"
+          content="width=device-width,height=device-height,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no">
+    <script type="text/javascript" src="https://unpkg.com/vtk.js"></script>
+    <script
+            src="https://code.jquery.com/jquery-3.5.1.min.js"
+            integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="
+            crossorigin="anonymous"></script>
+    <title>Defacing Test</title>
+</head>
+<body>
+<div class="header">
+    <div class="home-menu pure-menu pure-menu-horizontal pure-menu-fixed">
+        <a class="pure-menu-heading" href="/">ADNI MRI Privacy QC</a>
+        <ul class="pure-menu-list">
+            {% if user %}
+                <li class="pure-menu-item"><a class="pure-menu-link" href="">{{ user['name'] }}</a>
+                <li class="pure-menu-item"><a class="pure-menu-link" href="{{ url_for('google_auth.logout') }}">Log
+                    Out</a>
+                    {% else %}
+                <li class="pure-menu-item">
+                <a class="pure-menu-link" href="{{ url_for('google_auth.login') }}">Log In</a>
+            {% endif %}
+        </ul>
+    </div>
+</div>
+
+<div id="main">
+
+{% if user %}
+
+    <div style="width:100%; position:absolute; height:50px; background-color: darkblue">
+        <b style="color: white">{{ user_name }}</b> &nbsp
+        <a href="{{ url_for('google_auth.logout') }}">Log out</a>
+    </div>
+    <div class="content" id="render_raw" style="width:50%;height:100%;margin:0;float:left;"></div>
+    <div class="content" id="render_{{ method }}" style="width:50%;height:100%;margin:0;float:left;"></div>
+
+    <script type="text/javascript">
+
+        // ----------------------------------------------------------------------------
+        // Standard rendering code setup
+        // ----------------------------------------------------------------------------
+        var activeWindows = [];
+        var in_syncro = false;
+
+        function createView(Id, url) {
+            // Find container
+            container = $("#render_" + Id);
+
+            var renderer = vtk.Rendering.Core.vtkRenderer.newInstance();
+
+            var openglRenderWindow = vtk.Rendering.OpenGL.vtkRenderWindow.newInstance();
+            openglRenderWindow.setContainer(container[0]);
+
+            renderWindow = vtk.Rendering.Core.vtkRenderWindow.newInstance();
+            renderWindow.addRenderer(renderer);
+            renderWindow.addView(openglRenderWindow);
+
+            // Set up interactor
+            var interactor = vtk.Rendering.Core.vtkRenderWindowInteractor.newInstance();
+            interactor.setView(openglRenderWindow);
+
+            // Read mesh
+            const reader = vtk.IO.Legacy.vtkPolyDataReader.newInstance();
+            reader.setUrl(url).then(() => {
+                reader.loadData().then(() => {
+                    console.log('Loaded data ', Id);
+                    renderer.resetCamera();
+                    renderer.getActiveCamera().setFocalPoint(0, 0, 0);
+                    renderer.getActiveCamera().setPosition(0, 1, 0);
+                    renderer.getActiveCamera().setViewUp(0, 0, 1);
+                    renderer.resetCamera();
+
+                    renderWindow.render();
+
+                    interactor.initialize();
+                });
+            });
+
+            // Set up mapping, etc
+            const mapper = vtk.Rendering.Core.vtkMapper.newInstance();
+            mapper.setInputConnection(reader.getOutputPort());
+            const actor = vtk.Rendering.Core.vtkActor.newInstance();
+            actor.setMapper(mapper);
+
+            actor.getProperty().setColor(1.0, 0.8, 0.2);
+            renderer.addActor(actor);
+
+            interactor.bindEvents(container[0]);
+            interactor.setInteractorStyle(vtk.Interaction.Style.vtkInteractorStyleTrackballCamera.newInstance());
+
+            interactor.onMouseMove(function () {
+                var masterWindow = this.getView().get().el.id;
+                if (!in_syncro)
+                    synchroCamera(masterWindow);
+            });
+
+            interactor.onMouseWheel(function () {
+                var masterWindow = this.getView().get().el.id;
+                if (!in_syncro)
+                    synchroCamera(masterWindow);
+            });
+
+            activeWindows[Id] = {};
+            activeWindows[Id]['renderWindow'] = renderWindow;
+        }
+
+        function synchroCamera(masterWindow) {
+            in_syncro = true;
+            var master_Id = masterWindow.split('_')[1];
+            console.log('Camera from: ', master_Id);
+            var master_renderWindow = activeWindows[master_Id]['renderWindow'];
+            var master_renderer = master_renderWindow.getRenderers()[0];
+            var camera = master_renderer.getActiveCamera();
+            var listIds = Object.keys(activeWindows);
+            for (var i in listIds) {
+                var Id = listIds[i];
+                if (Id != master_Id) {
+                    var renderWindow = activeWindows[Id]['renderWindow'];
+                    var renderer = renderWindow.getRenderers()[0];
+                    renderer.setActiveCamera(camera);
+                    renderWindow.render();
+                }
+            }
+            in_syncro = false;
+        }
+
+
+        createView("{{method}}", "{{ url_for('load_mesh', id=id, method=method) }}");
+        createView("raw", "{{ url_for('load_mesh', id=id, method='raw') }}");
+
+    </script>
+
+{% else %}
+
+    <div class="content">    <h3 style="color:black;"> Please login to use this application</h3> </div>
+
+
+{% endif %}
+
+</div>
+
+</body>
+</html>
