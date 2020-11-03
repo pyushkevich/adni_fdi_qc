@@ -133,8 +133,8 @@
         }
 
 
-        createView("{{method}}", "{{ url_for('load_mesh', id=id, method=method) }}");
-        createView("raw", "{{ url_for('load_mesh', id=id, method='raw') }}");
+        createView("{{method}}", "{{ url_for('fdi.load_mesh', id=id, method=method) }}");
+        createView("raw", "{{ url_for('fdi.load_mesh', id=id, method='raw') }}");
 
     </script>
 
